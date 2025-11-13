@@ -1,49 +1,50 @@
-RAG Pipeline for Hospital Data Extraction
+ChatGPT a dit :
+# RAG Pipeline for Hospital Data Extraction
 
-This project processes unstructured hospital data stored in multiple PDF files and converts it into structured information. The workflow uses a Retrieval-Augmented Generation (RAG) approach powered by the OpenAI API.
+This project transforms unstructured hospital data from PDF documents into structured, machine-readable formats using a Retrieval-Augmented Generation (RAG) workflow powered by the OpenAI API.
 
-Overview
+---
 
-Extract text from hospital PDFs containing unstructured clinical and administrative information.
+## Features
 
-Build a retrieval pipeline using GPT-4o-mini for generation and llm-extract-embedding-3 for vector embeddings.
+- Extract text from unstructured clinical and administrative PDFs
+- Generate vector embeddings using **text-embedding-3-small**
+- Store and query embeddings with **ChromaDB**
+- Use **GPT-4o-mini** for context-aware structured output generation
+- Export results as **CSV** or **JSON**
+- Post-process and enrich data using SQL transformations
 
-Store embeddings in ChromaDB to enable efficient similarity search and context retrieval.
+---
 
-Query the LLM to produce structured outputs (CSV or JSON) based on user-defined information needs.
+## Pipeline Overview
 
-Pipeline Components
+### 1. Document Ingestion
 
-Document Ingestion
+- Parse and extract text from PDF files  
+- Clean and preprocess extracted content  
+- Chunk documents into smaller segments  
+- Assign metadata (e.g. document name, page index)
 
-PDF parsing and text preprocessing.
+### 2. Embedding & Vector Storage
 
-Chunking and metadata assignment.
+- Generate embeddings for each text chunk using **llm-extract-embedding-3**  
+- Store embeddings in **ChromaDB** for efficient similarity search and retrieval
 
-Embedding & Vector Storage
+### 3. RAG Querying
 
-Text chunks embedded using llm-extract-embedding-3.
+- Retrieve the most relevant chunks from **ChromaDB** based on the user query  
+- Provide retrieved context to **GPT-4o-mini**  
+- Generate structured answers tailored to specific information needs  
+- Support for **CSV** and **JSON** formatted outputs
 
-Embeddings stored in ChromaDB for fast vector search.
+### 4. Post-Processing
 
-LLM Querying
+- Clean and normalize the structured outputs  
+- Enrich data using SQL transformations  
+- Prepare final datasets for analytics or downstream applications
 
-RAG workflow that retrieves relevant document chunks.
 
-GPT-4o-mini generates structured answers tailored to the query.
 
-Outputs formatted as CSV or JSON.
 
-Post-Processing
 
-Structured outputs cleaned and enriched using SQL transformations.
 
-Data prepared for analytics or downstream applications.
-
-Objectives
-
-Transform unstructured hospital documents into machine-readable datasets.
-
-Enable reliable and context-aware information extraction using RAG.
-
-Provide a modular foundation for future data cleaning, enrichment, and analysis steps.
