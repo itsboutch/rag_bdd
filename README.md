@@ -1,4 +1,4 @@
-ChatGPT a dit :
+
 # RAG Pipeline for Hospital Data Extraction
 
 This project transforms unstructured hospital data from PDF documents into structured, machine-readable formats using a Retrieval-Augmented Generation (RAG) workflow powered by the OpenAI API.
