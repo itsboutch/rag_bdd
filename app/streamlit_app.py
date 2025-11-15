@@ -90,7 +90,8 @@
 #             placeholder = st.empty()
 #             placeholder = st.write(answer)
 
-
+import pandas as pd
+import uuid
 import streamlit as st
 import base64
 from app.functions import (
@@ -133,16 +134,73 @@ if uploaded_file and api_key:
 
 # ---- EXTRACTION ----
 if "vector_store" in st.session_state and st.button("📊 Extract Hospital Information"):
-    with st.spinner("Extracting structured data..."):
-        df = query_document(
-            vectorstore=st.session_state.vector_store,
-            query="Extract hospital information",
-            api_key=api_key,
-        )
-        st.dataframe(df)
-        st.download_button(
-            "Download CSV",
-            df.to_csv(index=False).encode("utf-8"),
-            "hospital_info.csv",
-            "text/csv",
-        )
+
+    result = query_document(
+        vectorstore=st.session_state.vector_store,
+        query="Extract hospital information",
+        api_key=api_key,
+    )
+
+    data = result.iloc[0]
+
+    # --- Build base DataFrames ---
+    hospital_df = pd.DataFrame([data["hospital"]])
+    departments_df = pd.DataFrame(data["departments"]) if data["departments"] else pd.DataFrame()
+    staff_df = pd.DataFrame(data["staff"]) if data["staff"] else pd.DataFrame()
+
+    # --- STEP 1: add hospital_id ---
+    hospital_id = str(uuid.uuid4())
+    hospital_df["hospital_id"] = hospital_id
+
+    if not departments_df.empty:
+        departments_df["hospital_id"] = hospital_id
+
+        # --- STEP 2: add department_id for each department ---
+        departments_df["department_id"] = [
+            str(uuid.uuid4()) for _ in range(len(departments_df))
+        ]
+
+    # --- STEP 3: link staff to departments (if department_name exists) ---
+    if not staff_df.empty and "department_name" in staff_df.columns:
+
+        # build mapping: department_name -> department_id
+        dept_map = {
+            row["service_name"]: row["department_id"]
+            for _, row in departments_df.iterrows()
+        }
+
+        staff_df["department_id"] = staff_df["department_name"].map(dept_map)
+
+    # --- DISPLAY ---
+    st.subheader("🏥 Hospital Information")
+    st.dataframe(hospital_df)
+
+    st.subheader("📌 Departments")
+    st.dataframe(departments_df)
+
+    st.subheader("👥 Staff")
+    st.dataframe(staff_df)
+
+    # --- DOWNLOAD BUTTONS ---
+    st.download_button(
+        "Download Hospital CSV",
+        hospital_df.to_csv(index=False).encode("utf-8"),
+        "hospital.csv",
+        "text/csv",
+    )
+
+    st.download_button(
+        "Download Departments CSV",
+        departments_df.to_csv(index=False).encode("utf-8"),
+        "departments.csv",
+        "text/csv",
+    )
+
+    st.download_button(
+        "Download Staff CSV",
+        staff_df.to_csv(index=False).encode("utf-8"),
+        "staff.csv",
+        "text/csv",
+    )
+
+

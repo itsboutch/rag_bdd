@@ -183,8 +183,8 @@ def get_pdf_text(uploaded_file):
 
 def split_document(documents):
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1500,
-        chunk_overlap=200,
+        chunk_size=6000,
+        chunk_overlap=800,
         length_function=len,
         separators=["\n\n", "\n", " "],
     )
@@ -317,27 +317,109 @@ def load_vectorstore(file_name, api_key, vectorstore_path="db"):
 # """
 
 PROMPT_TEMPLATE = """
-You are an assistant for extracting structured hospital information.
-From the provided context, extract the following fields if available:
+You are an assistant for extracting structured information from medical/hospital documents.
 
-- Hospital name
-- Address
-- Phone
-- Email
-- Total capacity (beds)
-- Category
-- Director or Chief Doctor
-- Services and their capacities
+Your task is to extract:
+1. Hospital-level information
+2. Department-level information
+3. Staff-level information
 
-Return the answer as a valid JSON object with these keys.
-If any value is missing, return null for that key.
+Follow these interpretation rules to identify departments and staff:
+
+1. A "department" is any section header that:
+   - starts with words like "Direction", "Pôle", "Département", "Coordination", "Service",
+   - OR is visually formatted as a title followed by staff members.
+2. Each department should be extracted even if no capacity is listed. Use:
+   "capacity": null
+3. A "staff member" is any line that contains:
+   - a name (Mr/Mme/Dr + name)
+   - a role (Directeur, Directrice, adjoint, etc.)
+   - optional email
+   - optional phone
+4. Staff members listed under a department belong to that department until the next department header appears.
+5. Ignore “Voir la fiche,” URL links, and site navigation items.
+6. Ignore repeated email duplicates and treat multi-line entries as a single staff entry.
+
+Extract the following fields if available:
+
+## Hospital Information (hospital)
+- hospital_name
+- hospital_address
+- hospital_phone
+- hospital_email
+- total capacity (sum if several categories listed)
+- hospital_category
+- hospital_director
+- hospital_city
+
+## Department Information (departments)
+For each department:
+- service_name (department title)
+- capacity (numeric if applicable, else null)
+
+## Staff Information (staff)
+For each person:
+- staff_name
+- staff_surname
+- staff_sex (infer from title: M = male, Mme/Mlle = female)
+- staff_email
+- staff_phone
+- staff_role
+- deparment_name
+
+---
+
+## Output Format
+
+Return THREE separate tables in a Pandas-compatible structure:
+
+### 1. Hospital table (1 row)
+Columns:
+- hospital_name
+- hospital_address
+- hospital_phone
+- hospital_email
+- hospital_total_capacity
+- hospital_category
+- hospital_director
+- hospital_city
+
+### 2. Departments table (N rows)
+Columns:
+- service_name
+- capacity
+
+### 3. Staff table (N rows)
+Columns:
+- staff_name
+- staff_surname
+- staff_sex
+- staff_email
+- staff_phone
+- staff_role
+- department_name ( the department the staff belongs to)
+
+Return the final answer as a **single JSON object containing 3 keys**:
+- "hospital" → a dict representing a 1-row DataFrame
+- "departments" → a list of dicts (rows)
+- "staff" → a list of dicts (rows)
+
+This JSON must be strictly compatible with:
+pandas.DataFrame.from_records()
+
+If any field is missing, return null.
+If a list is empty, return an empty list.
+
+---
 
 Context:
 {context}
 
 ---
-Question: Extract structured hospital data.
+Question: Extract detailed structured hospital, department, and staff information.
+
 """
+
 
 # class AnswerWithSources(BaseModel):
 #     """An answer to the question, with sources and reasoning."""
@@ -360,6 +442,7 @@ Question: Extract structured hospital data.
 #     # hopsital_year: AnswerWithSources
 #     # paper_authors: AnswerWithSources
 
+
 class HospitalInfo(BaseModel):
     hospital_name: str | None = None
     hospital_address: str | None = None
@@ -368,7 +451,28 @@ class HospitalInfo(BaseModel):
     hospital_total_capacity: str | None = None
     hospital_category: str | None = None
     hospital_director: str | None = None
-    services: list[str] | None = None
+    hospital_city: str | None = None
+
+class DepartmentInfo(BaseModel):
+    service_name: str | None = None
+    capacity: str| None = None
+
+    
+
+class StaffInfo(BaseModel):
+    staff_name: str | None = None
+    staff_surname: str | None = None
+    staff_sex: str | None = None
+    staff_email: str | None = None
+    staff_phone: str | None = None
+    staff_role: str | None = None
+    depatment_name: str | None = None
+
+
+class HospitalData(BaseModel):
+    hospital: HospitalInfo | None = None
+    departments: list[DepartmentInfo] | None = None
+    staff: list[StaffInfo] | None = None
 
 def format_docs(docs):
     """
@@ -425,14 +529,14 @@ def format_docs(docs):
 
 def query_document(vectorstore, query, api_key):
     """Exécute une requête RAG sur le vectorstore."""
-    llm = ChatOpenAI(model="gpt-4o-mini", api_key=api_key)
+    llm = ChatOpenAI(model="gpt-5", api_key=api_key)
     retriever = vectorstore.as_retriever(search_type="similarity")
     prompt = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
 
     rag_chain = (
         {"context": retriever | format_docs, "question": RunnablePassthrough()}
         | prompt
-        | llm.with_structured_output(HospitalInfo, strict=False)
+        | llm.with_structured_output(HospitalData, strict=False)
     )
 
     response = rag_chain.invoke(query)
